@@ -72,6 +72,9 @@ class AbstractSlaveBuilder(pb.Referenceable):
         # no slave? not very available.
         return False
 
+    def isIdle(self):
+        return self.isAvailable() and self.state is IDLE
+
     def isBusy(self):
         return self.state not in (IDLE, LATENT)
 
