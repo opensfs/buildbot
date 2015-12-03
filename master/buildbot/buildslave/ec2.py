@@ -274,8 +274,6 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
         instance_id, image_id, start_time = self._wait_for_instance(
             reservation)
         if None not in [instance_id, image_id, start_time]:
-            if len(self.tags) > 0:
-                self.conn.create_tags(instance_id, self.tags)
             return [instance_id, image_id, start_time]
         else:
             log.msg('%s %s failed to start instance %s (%s)' %
@@ -398,6 +396,8 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
                 minutes // 60, minutes % 60, seconds)
             if len(self.volumes) > 0:
                 self._attach_volumes()
+            if len(self.tags) > 0:
+                self.conn.create_tags(self.instance.id, self.tags)
             return self.instance.id, image.id, start_time
         else:
             return None, None, None
