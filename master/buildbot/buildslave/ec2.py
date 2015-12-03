@@ -49,6 +49,7 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
 
     instance = image = None
     _poll_resolution = 5  # hook point for tests
+    _poll_retry = 10
 
     def __init__(self, name, password, instance_type, ami=None,
                  valid_ami_owners=None, valid_ami_location_regex=None,
@@ -302,7 +303,15 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
     def _stop_instance(self, instance, fast):
         if self.elastic_ip is not None:
             self.conn.disassociate_address(self.elastic_ip.public_ip)
-        instance.update()
+        try:
+            instance.update()
+        except boto.exception.EC2ResponseError, e:
+            log.msg('%s %s cannot find instance %s to terminate' %
+                    (self.__class__.__name__, self.slavename, instance.id))
+            if e.error_code == 'InvalidInstanceID.NotFound':
+                return
+            else:
+                raise
         if instance.state not in (SHUTTINGDOWN, TERMINATED):
             instance.terminate()
             log.msg('%s %s terminating instance %s' %
@@ -380,7 +389,16 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
                 log.msg('%s %s has waited %d minutes for instance %s' %
                         (self.__class__.__name__, self.slavename, duration // 60,
                          self.instance.id))
-            self.instance.update()
+            try:
+                self.instance.update()
+            except boto.exception.EC2ResponseError, e:
+                log.msg('%s %s failed to find instance %s' %
+                        (self.__class__.__name__, self.slavename,
+                         self.instance.id))
+                if e.error_code == 'InvalidInstanceID.NotFound':
+                    continue
+                else:
+                    raise
         if self.instance.state == RUNNING:
             self.output = self.instance.get_console_output()
             minutes = duration // 60
@@ -406,11 +424,25 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
         log.msg('%s %s requesting spot instance' %
                 (self.__class__.__name__, self.slavename))
         duration = 0
+        attempts = 0
         interval = self._poll_resolution
-        requests = self.conn.get_all_spot_instance_requests(
-            request_ids=[reservation.id])
-        request = requests[0]
-        request_status = request.status.code
+        while attempts < self._poll_retry:
+            try:
+                requests = self.conn.get_all_spot_instance_requests(
+                    request_ids=[reservation.id])
+                request = requests[0]
+                request_status = request.status.code
+                break
+            except boto.exception.EC2ResponseError, e:
+                attempts += 1
+                log.msg('%s %s failed to find spot request %s' %
+                        (self.__class__.__name__, self.slavename,
+                        reservation.id))
+                if e.error_code == 'InvalidSpotInstanceRequestID.NotFound':
+                    time.sleep(interval)
+                    continue
+                else:
+                    raise
         while request_status in SPOT_REQUEST_PENDING_STATES:
             time.sleep(interval)
             duration += interval
@@ -418,10 +450,18 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
                 log.msg('%s %s has waited %d minutes for spot request %s' %
                         (self.__class__.__name__, self.slavename, duration // 60,
                          request.id))
-            requests = self.conn.get_all_spot_instance_requests(
-                request_ids=[request.id])
-            request = requests[0]
-            request_status = request.status.code
+            try:
+                requests = self.conn.get_all_spot_instance_requests(
+                    request_ids=[request.id])
+                request = requests[0]
+                request_status = request.status.code
+            except boto.exception.EC2ResponseError, e:
+                log.msg('%s %s failed to find spot request %s' %
+                        (self.__class__.__name__, self.slavename, request.id))
+                if e.error_code == 'InvalidSpotInstanceRequestID.NotFound':
+                    continue
+                else:
+                    raise
         if request_status == FULFILLED:
             minutes = duration // 60
             seconds = duration % 60

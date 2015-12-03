@@ -992,6 +992,7 @@ class AbstractLatentBuildSlave(AbstractBuildSlave):
             del self._shutdown_callback_handle
             reactor.removeSystemEventTrigger(handle)
         self.substantiated = False
+        self.slave = None
         self.building.clear()  # just to be sure
         yield d
         self.insubstantiating = False
