@@ -965,7 +965,7 @@ class AbstractLatentBuildSlave(AbstractBuildSlave):
         self.building.remove(sb.builder_name)
         if not self.building:
             if self.build_wait_timeout == 0:
-                self.insubstantiate()
+                self._soft_disconnect()
             else:
                 self._setBuildWaitTimer()
 
