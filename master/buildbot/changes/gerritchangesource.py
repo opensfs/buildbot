@@ -66,6 +66,8 @@ class GerritChangeSource(base.ChangeSource):
                  username,
                  gerritport=29418,
                  identity_file=None,
+                 project=None,
+                 branch=None,
                  handled_events=("patchset-created", "ref-updated")):
         """
         @type  gerritserver: string
@@ -89,6 +91,8 @@ class GerritChangeSource(base.ChangeSource):
         self.gerritport = gerritport
         self.username = username
         self.identity_file = identity_file
+        self.project = project
+        self.branch = branch
         self.handled_events = list(handled_events)
         self.process = None
         self.wantProcess = False
@@ -181,6 +185,15 @@ class GerritChangeSource(base.ChangeSource):
 
         if "change" in event and "patchSet" in event:
             event_change = event["change"]
+
+            if self.project is not None and self.project != event_change["project"]:
+                log.msg("ignoring change from project %s" % event_change["project"])
+                return defer.succeed(None)
+
+            if self.branch is not None and self.branch != event_change["branch"]:
+                log.msg("ignoring change from branch %s" % event_change["branch"])
+                return defer.succeed(None)
+
             return self.addChange({
                 'author': "%s <%s>" % (
                     event_change["owner"]["name"],
@@ -200,6 +213,14 @@ class GerritChangeSource(base.ChangeSource):
     def eventReceived_ref_updated(self, properties, event):
         ref = event["refUpdate"]
         author = "gerrit"
+
+        if self.project is not None and self.project != ref["project"]:
+            log.msg("ignoring refUpdate from project %s" % ref["project"])
+            return defer.succeed(None)
+
+        if self.branch is not None and self.branch != ref["branch"]:
+            log.msg("ignoring refUpdate from branch %s" % ref["branch"])
+            return defer.succeed(None)
 
         if "submitter" in event:
             author = "%s <%s>" % (
@@ -270,8 +291,21 @@ class GerritChangeSource(base.ChangeSource):
 
     def describe(self):
         status = ""
+        project = ""
+        branch = ""
+
+        if self.project is not None:
+            project = "project %s" % self.project
+        else:
+            project = "all projects"
+
+        if self.branch is not None:
+           branch = "branch %s" % self.branch
+        else:
+           branch = "all branches"
+
         if not self.process:
             status = "[NOT CONNECTED - check log]"
         msg = ("GerritChangeSource watching the remote "
                "Gerrit repository %s@%s %s")
-        return msg % (self.username, self.gerritserver, status)
+        return msg % (project, branch, self.username, self.gerritserver, status)
