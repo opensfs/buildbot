@@ -295,17 +295,17 @@ class GerritChangeSource(base.ChangeSource):
         branch = ""
 
         if self.project is not None:
-            project = "project %s" % self.project
+            project = "project '%s'" % self.project
         else:
             project = "all projects"
 
         if self.branch is not None:
-           branch = "branch %s" % self.branch
+           branch = "branch '%s'" % self.branch
         else:
            branch = "all branches"
 
         if not self.process:
             status = "[NOT CONNECTED - check log]"
-        msg = ("GerritChangeSource watching the remote "
+        msg = ("GerritChangeSource watching %s (%s) in remote "
                "Gerrit repository %s@%s %s")
         return msg % (project, branch, self.username, self.gerritserver, status)
