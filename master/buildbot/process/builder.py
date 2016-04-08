@@ -302,12 +302,12 @@ class Builder(config.ReconfigurableServiceMixin,
         cleanups = []
 
         def run_cleanups():
-            try:
-                while cleanups:
-                    fn = cleanups.pop()
+            while cleanups:
+                fn = cleanups.pop()
+                try:
                     fn()
-            except:
-                log.err(failure.Failure(), "while running %r" % (run_cleanups,))
+                except:
+                    log.err(failure.Failure(), "while running %r" % (run_cleanups,))
 
         # the last cleanup we want to perform is to update the big
         # status based on any other cleanup
@@ -319,7 +319,7 @@ class Builder(config.ReconfigurableServiceMixin,
 
         # set up locks
         build.setLocks(self.config.locks)
-        cleanups.append(lambda: slavebuilder.slave.releaseLocks())
+        cleanups.append(lambda: slavebuilder.slave.releaseLocks() if slavebuilder.slave is not None else None)
 
         if len(self.config.env) > 0:
             build.setSlaveEnvironment(self.config.env)
