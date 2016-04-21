@@ -531,14 +531,15 @@ class BuildRequestDistributor(service.Service):
                 bc = self.createBuildChooser(bldr, self.master)
                 continue
 
-            buildStarted = yield bldr.maybeStartBuild(slave, breqs)
-
-            if not buildStarted:
-                yield self.master.db.buildrequests.unclaimBuildRequests(brids)
-
-                # and try starting builds again.  If we still have a working slave,
-                # then this may re-claim the same buildrequests
-                self.botmaster.maybeStartBuildsForBuilder(self.name)
+            d = bldr.maybeStartBuild(slave, breqs)
+            @defer.inlineCallbacks
+            def checkBuildStart(buildStarted, slavename, buildername, brids):
+                if not buildStarted:
+                    yield self.master.db.buildrequests.unclaimBuildRequests(brids)
+                    # and try starting builds again.  If we still have a working slave,
+                    # then this may re-claim the same buildrequests
+                    self.botmaster.maybeStartBuildsForBuilder(buildername)
+            d.addCallback(checkBuildStart, slave.slave.slavename, bldr.name, brids)
 
     def createBuildChooser(self, bldr, master):
         # just instantiate the build chooser requested
