@@ -90,6 +90,9 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
             else:
                 # verify that regex will compile
                 re.compile(valid_ami_location_regex)
+        if spot_instance and price_multiplier is None and max_spot_price is None:
+            raise ValueError('You must provide either one, or both, of '
+                             'price_multiplier or max_spot_price')
         self.valid_ami_owners = valid_ami_owners
         self.valid_ami_location_regex = valid_ami_location_regex
         self.instance_type = instance_type
@@ -378,24 +381,23 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
                 price_sum += price.price
                 price_count += 1
         if price_count == 0:
-            target_price = 0.02
+            bid_price = 0.02
         else:
-            target_price = (price_sum / price_count) * self.price_multiplier
-        return target_price
+            bid_price = (price_sum / price_count) * self.price_multiplier
+        return bid_price
 
     def _request_spot_instance(self):
-        target_price = self._bid_price_from_spot_price_history()
-        if target_price > self.max_spot_price:
-            log.msg('%s %s calculated spot price %0.2f exceeds '
-                    'configured maximum of %0.2f' %
-                    (self.__class__.__name__, self.slavename,
-                     target_price, self.max_spot_price))
-            raise interfaces.LatentBuildSlaveFailedToSubstantiate()
+        if self.price_multiplier is None:
+            bid_price = self.max_spot_price
         else:
-            log.msg('%s %s requesting spot instance with price %0.2f.' %
-                    (self.__class__.__name__, self.slavename, target_price))
+            bid_price = self._bid_price_from_spot_price_history()
+            if self.max_spot_price is not None \
+               and bid_price > self.max_spot_price:
+                bid_price = self.max_spot_price
+        log.msg('%s %s requesting spot instance with price %0.2f.' %
+                (self.__class__.__name__, self.slavename, bid_price))
         reservations = self.conn.request_spot_instances(
-            target_price, self.ami, key_name=self.keypair_name,
+            bid_price, self.ami, key_name=self.keypair_name,
             security_groups=[
                 self.security_name],
             instance_type=self.instance_type,
