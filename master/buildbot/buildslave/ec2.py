@@ -363,7 +363,7 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
                 (self.__class__.__name__, self.slavename,
                  instance.id, goal, duration // 60, duration % 60))
 
-    def _request_spot_instance(self):
+    def _bid_price_from_spot_price_history(self):
         timestamp_yesterday = time.gmtime(int(time.time() - 86400))
         spot_history_starttime = time.strftime(
             '%Y-%m-%dT%H:%M:%SZ', timestamp_yesterday)
@@ -381,6 +381,10 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
             target_price = 0.02
         else:
             target_price = (price_sum / price_count) * self.price_multiplier
+        return target_price
+
+    def _request_spot_instance(self):
+        target_price = self._bid_price_from_spot_price_history()
         if target_price > self.max_spot_price:
             log.msg('%s %s calculated spot price %0.2f exceeds '
                     'configured maximum of %0.2f' %
