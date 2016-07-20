@@ -432,6 +432,7 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
                 else:
                     raise
         if self.instance.state == RUNNING:
+            self.properties.setProperty("instance", self.instance.id, "BuildSlave")
             self.output = self.instance.get_console_output()
             minutes = duration // 60
             seconds = duration % 60
