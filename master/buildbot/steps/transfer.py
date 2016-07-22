@@ -258,7 +258,7 @@ class FileUpload(_TransferBuildStep):
 
     def __init__(self, slavesrc, masterdest,
                  workdir=None, maxsize=None, blocksize=16 * 1024, mode=None,
-                 keepstamp=False, url=None,
+                 keepstamp=False, url=None, urlText=None,
                  **buildstep_kwargs):
         _TransferBuildStep.__init__(self, workdir=workdir, **buildstep_kwargs)
 
@@ -272,6 +272,12 @@ class FileUpload(_TransferBuildStep):
         self.mode = mode
         self.keepstamp = keepstamp
         self.url = url
+        self.urlText = urlText
+
+    def finished(self, results):
+        log.msg("File '%s' upload finished with results %s" % (os.path.basename(self.slavesrc), str(results)))
+        self.step_status.setText(self.descriptionDone)
+        _TransferBuildStep.finished(self, results)
 
     def start(self):
         self.checkSlaveVersion("uploadFile")
@@ -286,9 +292,21 @@ class FileUpload(_TransferBuildStep):
         log.msg("FileUpload started, from slave %r to master %r"
                 % (source, masterdest))
 
-        self.step_status.setText(['uploading', os.path.basename(source)])
+        if self.description is None:
+            self.description = ['uploading %s' % (os.path.basename(masterdest))]
+
+        if self.descriptionDone is None:
+            self.descriptionDone = self.description
+
         if self.url is not None:
-            self.addURL(os.path.basename(masterdest), self.url)
+            urlText = self.urlText
+
+            if urlText is None:
+                urlText = os.path.basename(masterdest)
+
+            self.addURL(urlText, self.url)
+
+        self.step_status.setText(self.description)
 
         # we use maxsize to limit the amount of data on both sides
         fileWriter = _FileWriter(masterdest, self.maxsize, self.mode)
