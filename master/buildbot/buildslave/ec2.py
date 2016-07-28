@@ -335,14 +335,22 @@ class EC2LatentBuildSlave(AbstractLatentBuildSlave):
         try:
             instance.update()
         except boto.exception.EC2ResponseError, e:
-            log.msg('%s %s cannot find instance %s to terminate' %
+            log.msg('%s %s cannot find instance %s to update for termination' %
                     (self.__class__.__name__, self.slavename, instance.id))
             if e.error_code == 'InvalidInstanceID.NotFound':
                 return
             else:
                 raise
         if instance.state not in (SHUTTINGDOWN, TERMINATED):
-            instance.terminate()
+            try:
+                instance.terminate()
+            except boto.exception.EC2ResponseError, e:
+                log.msg('%s %s cannot find instance %s to terminate' %
+                    (self.__class__.__name__, self.slavename, instance.id))
+                if e.error_code == 'InvalidInstanceID.NotFound':
+                    return
+                else:
+                    raise
             log.msg('%s %s terminating instance %s' %
                     (self.__class__.__name__, self.slavename, instance.id))
         duration = 0
