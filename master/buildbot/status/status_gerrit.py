@@ -134,7 +134,7 @@ class GerritStatusPush(StatusReceiverMultiService, buildset.BuildSetSummaryNotif
     def __init__(self, server, username, reviewCB=DEFAULT_REVIEW,
                  startCB=None, port=29418, reviewArg=None,
                  startArg=None, summaryCB=DEFAULT_SUMMARY, summaryArg=None,
-                 identity_file=None, **kwargs):
+                 identity_file=None, notify="OWNER", **kwargs):
         StatusReceiverMultiService.__init__(self)
 
         # If neither reviewCB nor summaryCB were specified, default to sending
@@ -162,6 +162,7 @@ class GerritStatusPush(StatusReceiverMultiService, buildset.BuildSetSummaryNotif
         self.startArg = startArg
         self.summaryCB = summaryCB
         self.summaryArg = summaryArg
+        self.gerrit_notify = notify
 
     def _gerritCmd(self, *args):
         """
@@ -344,6 +345,10 @@ class GerritStatusPush(StatusReceiverMultiService, buildset.BuildSetSummaryNotif
             return
 
         command = self._gerritCmd("review", "--project %s" % str(project))
+
+        if self.gerrit_notify is not None:
+            command.extend(["--notify %s" % str(self.gerrit_notify)])
+
         message = result.get('message', None)
         if message:
             command.append("--message '%s'" % message.replace("'", "\""))
